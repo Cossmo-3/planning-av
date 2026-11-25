@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#100e09">
+  <title>Alpha Victorious | Disponibilités</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --fond: #100e09;
+      --panneau: #211c12;
+      --panneau-clair: #302719;
+      --or: #d6b443;
+      --or-fonce: #8d742e;
+      --texte-secondaire: #c9bd9b;
+      --vert: #37c96b;
+      --rouge: #ff9999;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 14px; background: var(--fond); color: white;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .conteneur { max-width: 850px; margin: 0 auto; }
+    header { text-align: center; padding: 22px 8px 26px; }
+    .embleme { color: var(--or); font-size: 38px; margin-bottom: 8px; }
+    h1 { color: var(--or); font-size: clamp(25px, 6vw, 38px); letter-spacing: 1.5px; margin: 0; }
+    header p { color: var(--texte-secondaire); margin: 9px 0 0; font-size: 13px; }
+    .panneau {
+      background: var(--panneau); border: 1px solid var(--or-fonce);
+      border-radius: 16px; padding: 16px; margin: 15px 0;
+    }
+    h2 { color: var(--or); font-size: 19px; margin: 0 0 15px; }
+    button, input { font: inherit; border-radius: 9px; }
+    button {
+      color: white; background: var(--panneau-clair); border: 1px solid var(--or);
+      padding: 11px 14px; cursor: pointer;
+    }
+    button.principal { background: #66521d; font-weight: bold; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .barre-mois { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .barre-mois strong { color: white; font-size: 18px; text-transform: capitalize; text-align: center; }
+    .calendrier { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin-top: 16px; }
+    .jour-semaine { text-align: center; color: var(--texte-secondaire); font-size: 11px; padding: 5px 0; }
+    .case-jour {
+      min-width: 0; min-height: 67px; padding: 6px 2px; border: 1px solid #514321;
+      border-radius: 8px; background: #17140e; display: flex; flex-direction: column;
+      align-items: center; justify-content: flex-start; gap: 5px;
+    }
+    .case-jour.autre-mois { opacity: .35; }
+    .case-jour.selectionne { outline: 2px solid var(--or); background: #3b3019; }
+    .case-jour.aujourd-hui { border-color: #e7d58e; }
+    .nombre { font-weight: bold; }
+    .point { width: 7px; height: 7px; display: inline-block; border-radius: 50%; background: var(--vert); }
+    .compte { color: var(--texte-secondaire); font-size: 9px; text-align: center; }
+    .aide { color: var(--texte-secondaire); font-size: 12px; line-height: 1.45; margin: 12px 0 0; }
+    .joueur {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 12px 0; border-top: 1px solid #4a3d20;
+    }
+    .joueur:first-child { border-top: 0; }
+    .pseudo { font-weight: bold; overflow-wrap: anywhere; }
+    .horaires { color: var(--texte-secondaire); font-size: 14px; margin-top: 4px; }
+    .vide { color: var(--texte-secondaire); font-size: 14px; padding: 8px 0; }
+    label { display: block; color: var(--texte-secondaire); font-size: 13px; margin: 12px 0 6px; }
+    input {
+      width: 100%; padding: 12px; background: #17140e; color: white;
+      border: 1px solid var(--or-fonce); outline: none;
+    }
+    input:focus { border-color: var(--or); }
+    .grille-formulaire { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .large { grid-column: 1 / -1; }
+    .actions { margin-top: 15px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .actions button { flex: 1; }
+    .statut { min-height: 20px; margin-top: 11px; color: var(--texte-secondaire); font-size: 13px; }
+    .statut.erreur { color: var(--rouge); }
+    .statut.succes { color: #8ce6a9; }
+    .pied { text-align: center; color: #93886c; font-size: 12px; padding: 20px 0 28px; }
+    @media (max-width: 480px) {
+      body { padding: 9px; }
+      .panneau { padding: 13px; }
+      .case-jour { min-height: 57px; }
+      .grille-formulaire { grid-template-columns: 1fr; }
+      .large { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+<div class="conteneur">
+  <header>
+    <div class="embleme">♛</div>
+    <h1>ALPHA VICTORIOUS</h1>
+    <p>PLANNING OFFICIEL · DISPONIBILITÉS DES JOUEURS</p>
+  </header>
+
+  <section class="panneau">
+    <div class="barre-mois">
+      <button type="button" id="moisPrecedent" aria-label="Mois précédent">‹</button>
+      <strong id="titreMois">Chargement…</strong>
+      <button type="button" id="moisSuivant" aria-label="Mois suivant">›</button>
+    </div>
+    <div class="calendrier" id="calendrier"></div>
+    <p class="aide">Clique sur une date pour voir les joueurs disponibles ce jour-là. Un point vert indique qu'au moins un joueur a répondu.</p>
+  </section>
+
+  <section class="panneau">
+    <h2 id="titreJour">Disponibilités du jour</h2>
+    <div id="listeJoueurs" class="vide">Chargement des réponses…</div>
+    <div class="actions">
+      <button type="button" id="actualiser">Actualiser les disponibilités</button>
+    </div>
+  </section>
+
+  <section class="panneau">
+    <h2>＋ Ajouter ma disponibilité</h2>
+    <form id="formulaire">
+      <div class="grille-formulaire">
+        <div class="large">
+          <label for="pseudo">Ton pseudo EVA</label>
+          <input id="pseudo" maxlength="30" placeholder="Ex. Cosmo" required>
+        </div>
+        <div class="large">
+          <label for="date">Date</label>
+          <input id="date" type="date" required>
+        </div>
+        <div>
+          <label for="debut">Heure de début</label>
+          <input id="debut" type="time" required>
+        </div>
+        <div>
+          <label for="fin">Heure de fin</label>
+          <input id="fin" type="time" required>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="principal" id="boutonEnregistrer" type="submit">Enregistrer ma disponibilité</button>
+      </div>
+      <div id="statut" class="statut" role="status"></div>
+    </form>
+    <p class="aide">Si tu modifies tes horaires pour le même jour avec le même pseudo, ta réponse sera mise à jour. Les réponses sont enregistrées dans la base commune AV.</p>
+  </section>
+
+  <div class="pied">ALPHA VICTORIOUS · ENSEMBLE VERS LA VICTOIRE</div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // Connexion au projet Supabase Alpha Victorious
+  const SUPABASE_URL = "https://csxvmrwvdfixzpnmnthd.supabase.co";
+  const SUPABASE_PUBLIC_KEY = "sb_publishable_cUpMHqE81Oye5Sdcrym7SA_K1QLzhch";
+  const TABLE = "av_disponibilites";
+
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLIC_KEY);
+  const $ = id => document.getElementById(id);
+  const maintenant = new Date();
+
+  let moisAffiche = new Date(maintenant.getFullYear(), maintenant.getMonth(), 1);
+  let dateSelectionnee = formatISO(maintenant);
+  let disponibilites = [];
+
+  function formatISO(date) {
+    const annee = date.getFullYear();
+    const mois = String(date.getMonth() + 1).padStart(2, "0");
+    const jour = String(date.getDate()).padStart(2, "0");
+    return `${annee}-${mois}-${jour}`;
+  }
+
+  function dateLocale(iso) {
+    const [annee, mois, jour] = iso.split("-").map(Number);
+    return new Date(annee, mois - 1, jour);
+  }
+
+  function echapper(texte) {
+    return String(texte ?? "").replace(/[&<>"']/g, caractere => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[caractere]));
+  }
+
+  function reponsesDuJour(iso) {
+    return disponibilites
+      .filter(ligne => ligne.jour === iso)
+      .sort((a, b) => String(a.heure_debut).localeCompare(String(b.heure_debut)));
+  }
+
+  function afficherStatut(message, type = "") {
+    $("statut").textContent = message;
+    $("statut").className = "statut " + type;
+  }
+
+  function afficherCalendrier() {
+    $("titreMois").textContent = moisAffiche.toLocaleDateString("fr-FR", {
+      month: "long", year: "numeric"
+    });
+
+    const premierJour = new Date(moisAffiche.getFullYear(), moisAffiche.getMonth(), 1);
+    const decalage = (premierJour.getDay() + 6) % 7;
+    const debutGrille = new Date(premierJour);
+    debutGrille.setDate(premierJour.getDate() - decalage);
+
+    const nomsJours = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+    let html = nomsJours.map(nom => `<div class="jour-semaine">${nom}</div>`).join("");
+
+    for (let index = 0; index < 42; index++) {
+      const date = new Date(debutGrille);
+      date.setDate(debutGrille.getDate() + index);
+
+      const iso = formatISO(date);
+      const nombre = reponsesDuJour(iso).length;
+      const classes = ["case-jour"];
+
+      if (date.getMonth() !== moisAffiche.getMonth()) classes.push("autre-mois");
+      if (iso === dateSelectionnee) classes.push("selectionne");
+      if (iso === formatISO(maintenant)) classes.push("aujourd-hui");
+
+      html += `
+        <button type="button" class="${classes.join(" ")}" data-date="${iso}">
+          <span class="nombre">${date.getDate()}</span>
+          <span>${nombre ? '<i class="point"></i>' : ""}</span>
+          <span class="compte">${nombre ? nombre + (nombre > 1 ? " joueurs" : " joueur") : "—"}</span>
+        </button>`;
+    }
+
+    $("calendrier").innerHTML = html;
+
+    $("calendrier").querySelectorAll("[data-date]").forEach(bouton => {
+      bouton.addEventListener("click", () => {
+        dateSelectionnee = bouton.dataset.date;
+        $("date").value = dateSelectionnee;
+        const date = dateLocale(dateSelectionnee);
+        moisAffiche = new Date(date.getFullYear(), date.getMonth(), 1);
+        afficherTout();
+      });
+    });
+  }
+
+  function afficherJour() {
+    const dateTexte = dateLocale(dateSelectionnee).toLocaleDateString("fr-FR", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric"
+    });
+    $("titreJour").textContent = "Disponibilités · " + dateTexte;
+
+    const lignes = reponsesDuJour(dateSelectionnee);
+    if (!lignes.length) {
+      $("listeJoueurs").innerHTML = '<div class="vide">Aucun joueur inscrit pour cette journée.</div>';
+      return;
+    }
+
+    $("listeJoueurs").innerHTML = lignes.map(ligne => `
+      <div class="joueur">
+        <div>
+          <div class="pseudo">🟢 ${echapper(ligne.pseudo)}</div>
+          <div class="horaires">${echapper(String(ligne.heure_debut).slice(0, 5))} – ${echapper(String(ligne.heure_fin).slice(0, 5))}</div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function afficherTout() {
+    afficherCalendrier();
+    afficherJour();
+  }
+
+  async function chargerDisponibilites() {
+    $("listeJoueurs").innerHTML = '<div class="vide">Actualisation…</div>';
+
+    const { data, error } = await db
+      .from(TABLE)
+      .select("id,pseudo,jour,heure_debut,heure_fin")
+      .order("jour", { ascending: true })
+      .order("heure_debut", { ascending: true });
+
+    if (error) {
+      $("listeJoueurs").innerHTML = '<div class="vide">Impossible de charger les disponibilités.</div>';
+      afficherStatut("Erreur Supabase : " + error.message, "erreur");
+      return;
+    }
+
+    disponibilites = data || [];
+    afficherTout();
+  }
+
+  $("formulaire").addEventListener("submit", async evenement => {
+    evenement.preventDefault();
+
+    const pseudo = $("pseudo").value.trim();
+    const jour = $("date").value;
+    const heure_debut = $("debut").value;
+    const heure_fin = $("fin").value;
+
+    if (!pseudo || !jour || !heure_debut || !heure_fin) {
+      afficherStatut("Remplis tous les champs.", "erreur");
+      return;
+    }
+
+    if (heure_fin <= heure_debut) {
+      afficherStatut("L'heure de fin doit être après l'heure de début.", "erreur");
+      return;
+    }
+
+    const bouton = $("boutonEnregistrer");
+    bouton.disabled = true;
+    bouton.textContent = "Enregistrement…";
+
+    // Cherche une réponse existante du même pseudo pour la même date.
+    const { data: existante, error: erreurRecherche } = await db
+      .from(TABLE)
+      .select("id")
+      .eq("jour", jour)
+      .ilike("pseudo", pseudo)
+      .maybeSingle();
+
+    if (erreurRecherche) {
+      bouton.disabled = false;
+      bouton.textContent = "Enregistrer ma disponibilité";
+      afficherStatut("Erreur lors de la vérification : " + erreurRecherche.message, "erreur");
+      return;
+    }
+
+    let resultat;
+    if (existante) {
+      resultat = await db.from(TABLE)
+        .update({ pseudo, heure_debut, heure_fin })
+        .eq("id", existante.id);
+    } else {
+      resultat = await db.from(TABLE)
+        .insert([{ pseudo, jour, heure_debut, heure_fin }]);
+    }
+
+    bouton.disabled = false;
+    bouton.textContent = "Enregistrer ma disponibilité";
+
+    if (resultat.error) {
+      afficherStatut("Enregistrement impossible : " + resultat.error.message, "erreur");
+      return;
+    }
+
+    dateSelectionnee = jour;
+    const date = dateLocale(jour);
+    moisAffiche = new Date(date.getFullYear(), date.getMonth(), 1);
+    afficherStatut("Disponibilité enregistrée et partagée avec l'équipe !", "succes");
+    await chargerDisponibilites();
+  });
+
+  $("moisPrecedent").addEventListener("click", () => {
+    moisAffiche = new Date(moisAffiche.getFullYear(), moisAffiche.getMonth() - 1, 1);
+    afficherCalendrier();
+  });
+
+  $("moisSuivant").addEventListener("click", () => {
+    moisAffiche = new Date(moisAffiche.getFullYear(), moisAffiche.getMonth() + 1, 1);
+    afficherCalendrier();
+  });
+
+  $("actualiser").addEventListener("click", chargerDisponibilites);
+
+  $("date").value = dateSelectionnee;
+  chargerDisponibilites();
+
+  // Actualisation automatique : les autres joueurs voient les nouvelles réponses
+  // au plus tard 10 secondes après leur enregistrement.
+  setInterval(chargerDisponibilites, 10000);
+})();
+</script>
+</body>
+</html>
